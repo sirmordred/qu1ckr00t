@@ -71,4 +71,14 @@
         android:layout_marginBottom="15dp"
         android:layout_above="@+id/scrollView2"
         android:layout_centerHorizontal="true" />
+
+    <EditText
+        android:id="@+id/editText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/button"
+        android:layout_marginBottom="15dp"
+        android:ems="10"
+        android:inputType="textPersonName"
+        android:hint="-a 0x0 -b 0x700 -c 0x78 ..." />
 </RelativeLayout>

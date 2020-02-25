@@ -5,15 +5,13 @@ import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
-import android.text.Editable;
-import android.text.Selection;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.method.ScrollingMovementMethod;
 import android.text.style.StyleSpan;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -23,6 +21,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 public class MainActivity extends Activity {
 
@@ -30,10 +30,11 @@ public class MainActivity extends Activity {
     String pocPath;
     String magiskInstPath;
     String magiskPath;
+    String cmdInput = "";
     TextView textView;
     ScrollView scrollView;
     TextView deviceInfo;
-
+    EditText cmdInputEdx;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +45,7 @@ public class MainActivity extends Activity {
         textView = (TextView)findViewById(R.id.textView2);
         deviceInfo = (TextView)findViewById(R.id.deviceInfo);
         scrollView = (ScrollView)findViewById(R.id.scrollView2);
+        cmdInputEdx = findViewById(R.id.editText);
 
         SpannableStringBuilder ssb = new SpannableStringBuilder();
         addLabel(ssb, "Device", String.format("%s (Android %s)", DeviceInfo.getDeviceName(), DeviceInfo.getAndroidVersion()));
@@ -89,13 +91,22 @@ public class MainActivity extends Activity {
     }
 
     private class POCTask extends AsyncTask<String, String, Boolean> {
+        protected void onPreExecute() {
+            cmdInput = cmdInputEdx.getText().toString();
+        }
+
         protected Boolean doInBackground(String... programs) {
             extractPoc();
             extractMagisk();
 
             try {
-                String [] args = {pocPath, "shell_exec", magiskInstPath + " " + magiskPath};
-                if(!executeNativeCode(args)) {
+                ArrayList<String> cmdArr = new ArrayList<>();
+                cmdArr.add(pocPath);
+                cmdArr.addAll(Arrays.asList(cmdInput.split(" ")));
+                cmdArr.add("-n");
+                cmdArr.add(magiskInstPath + " " + magiskPath);
+                String[] cmd = new String[cmdArr.size()];
+                if(!executeNativeCode(cmdArr.toArray(cmd))) {
                     publishProgress("Rooting native execution failed");
                     return false;
                 }
