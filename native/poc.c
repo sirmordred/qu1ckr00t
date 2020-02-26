@@ -488,7 +488,11 @@ int main(int argc, char * argv[]) {
                 NUM__task_struct__cred__ids = strtol(optarg, NULL, 16);
                 break;
             case 'n' :
-                strcpy(command,optarg);
+                optind--;
+                for( ;optind < argc && *argv[optind] != '-'; optind++){
+                    strcat(command,argv[optind]);
+                    strcat(command," ");
+                }
                 break;
             default:
                 usage(); 
